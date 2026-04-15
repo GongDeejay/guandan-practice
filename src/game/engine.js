@@ -17,50 +17,53 @@ export function groupHand(hand, level) {
   const byRank = {};
   hand.forEach((c, i) => {
     if (!byRank[c.rank]) byRank[c.rank] = [];
-    byRank[c.rank].push({ card: c, idx: i });
+    byRank[c.rank].push(i);
   });
 
-  // 1. 四王炸弹
-  const jokers = hand.filter(c => c.rank === 'BJ' || c.rank === 'SJ');
-  if (jokers.length === 4) {
-    const indices = jokers.map(c => hand.indexOf(c));
-    groups.push({ label: '⚡四王炸', cards: indices, type: 'four_joker' });
-    indices.forEach(i => used.add(i));
+  // 1. 四王炸弹（正好4张大小王）
+  const jokerIndices = hand.reduce((acc, c, i) => {
+    if (c.rank === 'BJ' || c.rank === 'SJ') acc.push(i);
+    return acc;
+  }, []);
+  if (jokerIndices.length === 4) {
+    groups.push({ label: '⚡四王炸', cards: [...jokerIndices], type: 'four_joker' });
+    jokerIndices.forEach(i => used.add(i));
   }
 
-  // 2. 炸弹（>=4张同rank）
-  Object.entries(byRank).forEach(([rank, items]) => {
-    if (used.has(items[0].idx)) return;
-    if (items.length >= 4) {
-      const indices = items.map(it => it.idx);
-      groups.push({ label: `💣${rank}炸×${items.length}`, cards: indices, type: 'bomb' });
-      indices.forEach(i => used.add(i));
+  // 2. 炸弹（正好4张同rank，多余的牌拆出来）
+  Object.entries(byRank).forEach(([rank, indices]) => {
+    const free = indices.filter(i => !used.has(i));
+    if (free.length >= 4) {
+      const bomb = free.slice(0, 4);
+      groups.push({ label: `💣${rank}炸`, cards: bomb, type: 'bomb' });
+      bomb.forEach(i => used.add(i));
+      // >4张的部分在散牌阶段处理
     }
   });
 
-  // 3. 三条
-  Object.entries(byRank).forEach(([rank, items]) => {
-    if (used.has(items[0]?.idx)) return;
-    if (items.length >= 3) {
-      const indices = items.slice(0, 3).map(it => it.idx);
-      groups.push({ label: `×${rank}`, cards: indices, type: 'triple' });
-      indices.forEach(i => used.add(i));
+  // 3. 三条（3张同rank）
+  Object.entries(byRank).forEach(([rank, indices]) => {
+    const free = indices.filter(i => !used.has(i));
+    if (free.length >= 3) {
+      const triple = free.slice(0, 3);
+      groups.push({ label: `×${rank}`, cards: triple, type: 'triple' });
+      triple.forEach(i => used.add(i));
     }
   });
 
-  // 4. 对子
-  Object.entries(byRank).forEach(([rank, items]) => {
-    const unused = items.filter(it => !used.has(it.idx));
-    if (unused.length >= 2) {
-      const indices = unused.slice(0, 2).map(it => it.idx);
-      groups.push({ label: `${rank}${rank}`, cards: indices, type: 'pair' });
-      indices.forEach(i => used.add(i));
+  // 4. 对子（2张同rank）
+  Object.entries(byRank).forEach(([rank, indices]) => {
+    const free = indices.filter(i => !used.has(i));
+    if (free.length >= 2) {
+      const pair = free.slice(0, 2);
+      groups.push({ label: `${rank}${rank}`, cards: pair, type: 'pair' });
+      pair.forEach(i => used.add(i));
     }
   });
 
   // 5. 散牌
   const singles = [];
-  hand.forEach((c, i) => {
+  hand.forEach((_, i) => {
     if (!used.has(i)) singles.push(i);
   });
   if (singles.length > 0) {
