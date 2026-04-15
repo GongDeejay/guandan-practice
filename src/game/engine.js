@@ -6,43 +6,117 @@ import {
 import { identifyHandType, canBeat, aiChoosePlay } from './rules.js';
 import { generateAnalysis } from './analysis.js';
 
-const PLAYER_ORDER = ['south', 'west', 'north', 'east']; // 逆时针出牌顺序
+const PLAYER_ORDER = ['south', 'west', 'north', 'east'];
 
-// 创建初始游戏状态
-export function createGameState() {
-  const deck = shuffleDeck(createDeck());
-  const rawHands = dealCards(deck);
-  const level = '2'; // 起始级别
+// ========== 手牌分组 ==========
+export function groupHand(hand, level) {
+  const groups = [];
+  const used = new Set();
 
-  // 排序手牌
-  const hands = {};
-  for (const p of PLAYERS) {
-    hands[p] = sortHand(rawHands[p], level);
+  // 按 rank 统计
+  const byRank = {};
+  hand.forEach((c, i) => {
+    if (!byRank[c.rank]) byRank[c.rank] = [];
+    byRank[c.rank].push({ card: c, idx: i });
+  });
+
+  // 1. 四王炸弹
+  const jokers = hand.filter(c => c.rank === 'BJ' || c.rank === 'SJ');
+  if (jokers.length === 4) {
+    const indices = jokers.map(c => hand.indexOf(c));
+    groups.push({ label: '⚡四王炸', cards: indices, type: 'four_joker' });
+    indices.forEach(i => used.add(i));
   }
 
+  // 2. 炸弹（>=4张同rank）
+  Object.entries(byRank).forEach(([rank, items]) => {
+    if (used.has(items[0].idx)) return;
+    if (items.length >= 4) {
+      const indices = items.map(it => it.idx);
+      groups.push({ label: `💣${rank}炸×${items.length}`, cards: indices, type: 'bomb' });
+      indices.forEach(i => used.add(i));
+    }
+  });
+
+  // 3. 三条
+  Object.entries(byRank).forEach(([rank, items]) => {
+    if (used.has(items[0]?.idx)) return;
+    if (items.length >= 3) {
+      const indices = items.slice(0, 3).map(it => it.idx);
+      groups.push({ label: `×${rank}`, cards: indices, type: 'triple' });
+      indices.forEach(i => used.add(i));
+    }
+  });
+
+  // 4. 对子
+  Object.entries(byRank).forEach(([rank, items]) => {
+    const unused = items.filter(it => !used.has(it.idx));
+    if (unused.length >= 2) {
+      const indices = unused.slice(0, 2).map(it => it.idx);
+      groups.push({ label: `${rank}${rank}`, cards: indices, type: 'pair' });
+      indices.forEach(i => used.add(i));
+    }
+  });
+
+  // 5. 散牌
+  const singles = [];
+  hand.forEach((c, i) => {
+    if (!used.has(i)) singles.push(i);
+  });
+  if (singles.length > 0) {
+    groups.push({ label: `散牌(${singles.length})`, cards: singles, type: 'singles' });
+  }
+
+  return groups;
+}
+
+// ========== 状态管理 ==========
+
+export function createGameState() {
   return {
-    phase: PHASES.ANALYSIS,
-    level,
-    hands,
-    currentTurn: 'south', // 首局南方先出
-    lastPlay: null,        // { type, cards, player, size }
+    phase: PHASES.DEALING,
+    level: '2',
+    hands: { north: [], south: [], west: [], east: [] },
+    currentTurn: 'south',
+    lastPlay: null,
     consecutivePasses: 0,
-    playHistory: [],       // 历史出牌记录
-    selectedCards: [],     // 玩家选中的牌（index数组）
-    analysisData: null,    // 分析数据
+    playHistory: [],
+    selectedCards: [],
+    cardGroups: [],
+    analysisData: null,
     winner: null,
-    roundResults: null,    // [{ player, rank, outOrder }]
-    message: '掼蛋思维训练 — 分析当前牌局信息，然后出牌！',
-    levelWins: { teamA: 0, teamB: 0 }, // A=南北, B=东西
+    message: '点击「开始发牌」开始新牌局',
+    levelWins: { teamA: 0, teamB: 0 },
   };
 }
 
-// 获取当前分析数据
+export function startNewRound(state) {
+  const deck = shuffleDeck(createDeck());
+  const rawHands = dealCards(deck);
+  const level = state.level || '2';
+  const hands = {};
+  for (const p of PLAYERS) hands[p] = sortHand(rawHands[p], level);
+  const groups = groupHand(hands.south, level);
+
+  return {
+    ...state,
+    phase: PHASES.ANALYSIS,
+    hands,
+    currentTurn: 'south',
+    lastPlay: null,
+    consecutivePasses: 0,
+    playHistory: [],
+    selectedCards: [],
+    cardGroups: groups,
+    winner: null,
+    message: '轮到你了！先分析牌局信息',
+  };
+}
+
 export function getAnalysis(gameState) {
   return generateAnalysis(gameState);
 }
 
-// 玩家确认分析（从分析阶段进入出牌阶段）
 export function confirmAnalysis(state) {
   return {
     ...state,
@@ -51,77 +125,82 @@ export function confirmAnalysis(state) {
   };
 }
 
-// 切换牌的选中状态
+// 将牌从一个分组移到另一个分组
+export function moveCardGroup(state, fromGroupIdx, cardIdx, toGroupIdx) {
+  const groups = state.cardGroups.map(g => ({ ...g, cards: [...g.cards] }));
+  if (!groups[fromGroupIdx] || !groups[toGroupIdx]) return state;
+  const ci = groups[fromGroupIdx].cards.indexOf(cardIdx);
+  if (ci === -1) return state;
+  groups[fromGroupIdx].cards.splice(ci, 1);
+  if (groups[fromGroupIdx].cards.length === 0) groups.splice(fromGroupIdx, 1);
+  // 更新 toGroupIdx（可能因删除而偏移）
+  const toIdx = toGroupIdx >= fromGroupIdx && groups.length < state.cardGroups.length ? toGroupIdx - 1 : toGroupIdx;
+  if (groups[toIdx]) groups[toIdx].cards.push(cardIdx);
+  return { ...state, cardGroups: groups };
+}
+
+// 自动重新分组
+export function regroupHand(state) {
+  return {
+    ...state,
+    cardGroups: groupHand(state.hands.south, state.level),
+    selectedCards: [],
+  };
+}
+
 export function toggleCard(state, cardIndex) {
   const hand = state.hands.south;
   if (cardIndex < 0 || cardIndex >= hand.length) return state;
-
   const selected = state.selectedCards.includes(cardIndex)
     ? state.selectedCards.filter(i => i !== cardIndex)
     : [...state.selectedCards, cardIndex];
-
   return { ...state, selectedCards: selected };
 }
 
-// 玩家出牌
 export function playerPlay(state) {
   if (state.phase !== PHASES.PLAYER_TURN) return state;
-
   const hand = state.hands.south;
   const selectedCards = state.selectedCards.map(i => hand[i]);
-  
-  if (selectedCards.length === 0) {
-    return { ...state, message: '请先选择要出的牌！' };
-  }
+  if (selectedCards.length === 0) return { ...state, message: '请先选择要出的牌！' };
 
   const playType = identifyHandType(selectedCards, state.level);
-  if (!playType) {
-    return { ...state, message: '❌ 牌型不合法，请重新选择' };
-  }
+  if (!playType) return { ...state, message: '❌ 牌型不合法，请重新选择' };
 
   const playWithCards = { ...playType, cards: selectedCards, player: 'south' };
 
-  // 检查是否能打过上一手
   if (state.lastPlay && state.lastPlay.player !== 'south') {
     if (!canBeat(state.lastPlay, playWithCards, state.level)) {
       return { ...state, message: '❌ 打不过上一手牌，请重新选择' };
     }
   }
 
-  // 出牌成功
   const newHand = hand.filter((_, i) => !state.selectedCards.includes(i));
   const newHands = { ...state.hands, south: newHand };
-
-  // 记录出牌历史
   const newHistory = [...state.playHistory, playWithCards];
+  const newGroups = groupHand(newHand, state.level);
 
-  // 检查是否出完
   if (newHand.length === 0) {
-    return handleRoundEnd({ ...state, hands: newHands, playHistory: newHistory }, 'south');
+    return handleRoundEnd({
+      ...state, hands: newHands, playHistory: newHistory, cardGroups: newGroups
+    }, 'south');
   }
-
-  // 下一个玩家
-  const nextTurn = getNextPlayer('south');
-  const isFreeLead = true; // 刚出完牌，下家需要跟
 
   return {
     ...state,
     hands: newHands,
     playHistory: newHistory,
     lastPlay: playWithCards,
-    currentTurn: nextTurn,
+    currentTurn: getNextPlayer('south'),
     selectedCards: [],
+    cardGroups: newGroups,
     consecutivePasses: 0,
     phase: PHASES.AI_PLAYING,
     message: formatPlayMessage('south', playWithCards),
   };
 }
 
-// 玩家过牌
 export function playerPass(state) {
   if (state.phase !== PHASES.PLAYER_TURN) return state;
-
-  // 自由出牌时不能过
   if (!state.lastPlay || state.lastPlay.player === 'south' || state.consecutivePasses >= 3) {
     return { ...state, message: '当前可以自由出牌，不能"过"！请选择出牌' };
   }
@@ -129,15 +208,13 @@ export function playerPass(state) {
   const nextTurn = getNextPlayer('south');
   const newPasses = state.consecutivePasses + 1;
 
-  // 检查是否三家都过
   if (newPasses >= 3) {
-    // 上一个出牌者获得新一轮出牌权
     const lastPlayer = state.lastPlay.player;
     return {
       ...state,
       currentTurn: lastPlayer,
       consecutivePasses: 0,
-      lastPlay: null, // 新一轮自由出牌
+      lastPlay: null,
       selectedCards: [],
       phase: lastPlayer === 'south' ? PHASES.ANALYSIS : PHASES.AI_PLAYING,
       message: `三家都过！${PLAYER_NAMES[lastPlayer]}获得出牌权`,
@@ -154,13 +231,10 @@ export function playerPass(state) {
   };
 }
 
-// AI 回合处理（外部调用，一步步来）
 export function processAITurn(state) {
   if (state.phase !== PHASES.AI_PLAYING) return state;
-  
   const currentPlayer = state.currentTurn;
   if (currentPlayer === 'south') {
-    // 回到玩家
     return {
       ...state,
       phase: PHASES.ANALYSIS,
@@ -170,82 +244,55 @@ export function processAITurn(state) {
   }
 
   const hand = state.hands[currentPlayer];
-  if (hand.length === 0) {
-    return handleRoundEnd(state, currentPlayer);
-  }
+  if (hand.length === 0) return handleRoundEnd(state, currentPlayer);
 
-  // AI 选择出牌
   const strategy = currentPlayer === 'east' ? 'aggressive'
     : currentPlayer === 'west' ? 'conservative' : 'balanced';
-  
   const play = aiChoosePlay(hand, state.lastPlay, state.level, strategy);
 
   if (!play) {
-    // AI 过牌
     const nextTurn = getNextPlayer(currentPlayer);
     const newPasses = state.consecutivePasses + 1;
-
     if (newPasses >= 3) {
       const lastPlayer = state.lastPlay?.player || 'south';
       return {
-        ...state,
-        currentTurn: lastPlayer,
-        consecutivePasses: 0,
-        lastPlay: null,
+        ...state, currentTurn: lastPlayer, consecutivePasses: 0, lastPlay: null,
         phase: lastPlayer === 'south' ? PHASES.ANALYSIS : PHASES.AI_PLAYING,
         message: `${PLAYER_NAMES[currentPlayer]}过牌 — 三家都过！${PLAYER_NAMES[lastPlayer]}出牌`,
       };
     }
-
-    return {
-      ...state,
-      currentTurn: nextTurn,
-      consecutivePasses: newPasses,
-      message: `${PLAYER_NAMES[currentPlayer]}过牌`,
-    };
+    return { ...state, currentTurn: nextTurn, consecutivePasses: newPasses, message: `${PLAYER_NAMES[currentPlayer]}过牌` };
   }
 
-  // AI 出牌
   const playedCards = play.cards;
   const newHand = hand.filter(c => !playedCards.find(pc => pc.id === c.id));
   const newHands = { ...state.hands, [currentPlayer]: newHand };
   const playRecord = { ...play, cards: playedCards, player: currentPlayer };
   const newHistory = [...state.playHistory, playRecord];
 
-  // 检查是否出完
   if (newHand.length === 0) {
     return handleRoundEnd({ ...state, hands: newHands, playHistory: newHistory }, currentPlayer);
   }
 
-  const nextTurn = getNextPlayer(currentPlayer);
   return {
-    ...state,
-    hands: newHands,
-    playHistory: newHistory,
-    lastPlay: playRecord,
-    currentTurn: nextTurn,
-    consecutivePasses: 0,
+    ...state, hands: newHands, playHistory: newHistory, lastPlay: playRecord,
+    currentTurn: getNextPlayer(currentPlayer), consecutivePasses: 0,
     message: formatPlayMessage(currentPlayer, playRecord),
   };
 }
 
-// 获取下一个玩家
 function getNextPlayer(current) {
   const idx = PLAYER_ORDER.indexOf(current);
   return PLAYER_ORDER[(idx + 1) % 4];
 }
 
-// 处理一局结束
 function handleRoundEnd(state, winner) {
-  // 这里简化处理：显示结果，可以开始新局
   const isTeamA = winner === 'south' || winner === 'north';
-  const team = isTeamA ? '南北队' : '东西队';
-  
   return {
     ...state,
     phase: PHASES.ROUND_END,
     winner,
-    message: `🎉 ${PLAYER_NAMES[winner]}最先出完！${team}获胜！`,
+    message: `🎉 ${PLAYER_NAMES[winner]}最先出完！${isTeamA ? '南北队' : '东西队'}获胜！`,
     levelWins: {
       ...state.levelWins,
       teamA: state.levelWins.teamA + (isTeamA ? 1 : 0),
@@ -254,7 +301,6 @@ function handleRoundEnd(state, winner) {
   };
 }
 
-// 格式化出牌消息
 function formatPlayMessage(player, play) {
   const typeNames = {
     single: '单张', pair: '对子', triple: '三条',
@@ -270,42 +316,15 @@ function formatPlayMessage(player, play) {
     if (c.rank === 'SJ') return '小王';
     return `${c.suit}${c.rank}`;
   }).join(' ');
-  
   let msg = `${PLAYER_NAMES[player]}出了 [${typeName}] ${cards}`;
-  if (play.type && play.type.startsWith('bomb')) msg = '💣 ' + msg;
+  if (play.type?.startsWith('bomb')) msg = '💣 ' + msg;
   if (play.type === 'straight_flush') msg = '🔥 ' + msg;
   if (play.type === 'four_joker') msg = '⚡ ' + msg;
   return msg;
 }
 
-// 开始新局
-export function newGame(state) {
-  const newLevel = parseInt(state.level);
-  // 如果上一局赢了提升级别（简化）
-  const nextLevel = newLevel >= 14 ? 2 : newLevel + 1;
-  
-  const deck = shuffleDeck(createDeck());
-  const rawHands = dealCards(deck);
-  const level = String(RANKS[nextLevel - 2] || 'A');
-  
-  const hands = {};
-  for (const p of PLAYERS) {
-    hands[p] = sortHand(rawHands[p], level);
-  }
-
-  return {
-    phase: PHASES.ANALYSIS,
-    level,
-    hands,
-    currentTurn: 'south',
-    lastPlay: null,
-    consecutivePasses: 0,
-    playHistory: [],
-    selectedCards: [],
-    analysisData: null,
-    winner: null,
-    roundResults: null,
-    message: `新局开始 — 级别：${level}！分析牌局，然后出牌！`,
-    levelWins: state.levelWins,
-  };
+export function nextGame(state) {
+  const cur = parseInt(state.level);
+  const next = cur >= 14 ? '2' : String(RANKS[cur - 1] || 'A');
+  return { ...createGameState(), level: next, levelWins: state.levelWins };
 }
