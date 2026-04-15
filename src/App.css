@@ -1,0 +1,598 @@
+/* ===== 全局 ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --card-w: 56px;
+  --card-h: 80px;
+  --card-mini-w: 32px;
+  --card-mini-h: 44px;
+  --table-green: #1a6b3c;
+  --table-dark: #0d4a26;
+  --felt: #2d8f52;
+  --gold: #f0c040;
+  --red-suit: #e53935;
+  --black-suit: #222;
+  --panel-bg: #1e1e2e;
+  --panel-card: #2a2a3d;
+  --accent: #7c5cfc;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #111;
+  color: #eee;
+  overflow: hidden;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ===== Header ===== */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 24px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-bottom: 2px solid var(--gold);
+  flex-shrink: 0;
+}
+.app-header h1 {
+  font-size: 20px;
+  background: linear-gradient(135deg, var(--gold), #ff9800);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.header-info {
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+}
+.level-badge {
+  background: var(--gold);
+  color: #111;
+  padding: 2px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+.team-score {
+  color: #aaa;
+}
+
+/* ===== Game Area ===== */
+.game-area {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ===== 牌桌 ===== */
+.game-table {
+  flex: 1;
+  display: grid;
+  grid-template-areas:
+    ".    north .    "
+    "west center east "
+    ".    south .    ";
+  grid-template-columns: 1fr 2fr 1fr;
+  grid-template-rows: auto 1fr auto;
+  background: radial-gradient(ellipse at center, var(--felt) 0%, var(--table-green) 60%, var(--table-dark) 100%);
+  padding: 12px;
+  gap: 8px;
+  min-height: 0;
+  position: relative;
+}
+
+/* 牌桌边框装饰 */
+.game-table::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 3px solid rgba(240, 192, 64, 0.3);
+  border-radius: 20px;
+  pointer-events: none;
+}
+
+/* ===== 玩家区域 ===== */
+.player-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  position: relative;
+}
+.player-area.north { grid-area: north; }
+.player-area.west  { grid-area: west; }
+.player-area.east  { grid-area: east; }
+.player-area.south { grid-area: south; }
+
+.player-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.7);
+  background: rgba(0,0,0,0.3);
+  padding: 3px 14px;
+  border-radius: 10px;
+  transition: all 0.3s;
+}
+.player-label.active {
+  color: #111;
+  background: var(--gold);
+  box-shadow: 0 0 12px rgba(240, 192, 64, 0.5);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(240, 192, 64, 0.4); }
+  50% { box-shadow: 0 0 18px rgba(240, 192, 64, 0.8); }
+}
+
+/* ===== AI 手牌（牌背） ===== */
+.hand-compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  justify-content: center;
+}
+.hand-compact.vertical {
+  flex-direction: column;
+}
+.card-back-small {
+  width: 18px;
+  height: 26px;
+  background: repeating-linear-gradient(
+    135deg,
+    #1a3a6a,
+    #1a3a6a 3px,
+    #2a5a9a 3px,
+    #2a5a9a 6px
+  );
+  border-radius: 3px;
+  border: 1px solid #0a2a4a;
+  flex-shrink: 0;
+}
+.west .hand-compact .card-back-small,
+.east .hand-compact .card-back-small {
+  width: 26px;
+  height: 18px;
+}
+
+/* ===== 玩家手牌 ===== */
+.player-hand {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0;
+  min-height: var(--card-h);
+  padding: 4px 0;
+}
+.player-hand .card {
+  margin-left: -14px;
+}
+.player-hand .card:first-child {
+  margin-left: 0;
+}
+
+/* ===== 扑克牌 ===== */
+.card {
+  width: var(--card-w);
+  height: var(--card-h);
+  background: linear-gradient(180deg, #fff 0%, #f0f0f0 100%);
+  border-radius: 6px;
+  border: 1.5px solid #ccc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s, box-shadow 0.15s;
+  position: relative;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.card:hover:not(.disabled) {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.card.selected {
+  transform: translateY(-16px);
+  border-color: var(--gold);
+  box-shadow: 0 6px 16px rgba(240, 192, 64, 0.5);
+}
+.card.disabled {
+  cursor: default;
+  opacity: 0.95;
+}
+.card .card-rank {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+.card .card-suit {
+  font-size: 20px;
+  line-height: 1;
+  margin-top: 2px;
+}
+.card.red {
+  color: var(--red-suit);
+}
+.card.black {
+  color: var(--black-suit);
+}
+.card.bj {
+  background: linear-gradient(135deg, #111 0%, #333 50%, #111 100%);
+  color: var(--gold);
+  border-color: var(--gold);
+}
+.card.sj {
+  background: linear-gradient(135deg, #111 0%, #444 50%, #111 100%);
+  color: #bbb;
+  border-color: #888;
+}
+
+/* 小牌（紧凑模式） */
+.card-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 5px;
+  background: rgba(255,255,255,0.95);
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  line-height: 1;
+}
+.card-mini.red { color: var(--red-suit); border-color: #e0a0a0; }
+.card-mini.black { color: var(--black-suit); }
+.card-mini.bj { background: #222; color: var(--gold); border-color: var(--gold); }
+.card-mini.sj { background: #222; color: #aaa; border-color: #888; }
+.card-mini + .card-mini { margin-left: 2px; }
+
+/* ===== 中央区域 ===== */
+.table-center {
+  grid-area: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  position: relative;
+}
+.level-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: rgba(255,255,255,0.5);
+  font-size: 12px;
+}
+.level-indicator strong {
+  font-size: 36px;
+  color: var(--gold);
+  text-shadow: 0 0 12px rgba(240, 192, 64, 0.5);
+  font-weight: 900;
+}
+.last-play-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0,0,0,0.25);
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(240, 192, 64, 0.2);
+}
+.last-play-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.last-play-cards {
+  display: flex;
+  gap: 3px;
+}
+.last-play-type {
+  font-size: 12px;
+  color: var(--gold);
+}
+
+/* ===== 已出牌区域 ===== */
+.played-zone {
+  min-height: 30px;
+  display: flex;
+  justify-content: center;
+}
+.played-cards {
+  display: flex;
+  gap: 3px;
+  padding: 4px 8px;
+  background: rgba(0,0,0,0.15);
+  border-radius: 6px;
+}
+.played-cards.bomb {
+  background: rgba(229, 57, 53, 0.15);
+  border: 1px solid rgba(229, 57, 53, 0.3);
+}
+
+/* ===== 操作按钮 ===== */
+.action-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+.btn-play,
+.btn-pass {
+  padding: 8px 28px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-play {
+  background: linear-gradient(135deg, var(--gold), #ff9800);
+  color: #111;
+  box-shadow: 0 2px 8px rgba(240, 192, 64, 0.4);
+}
+.btn-play:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(240, 192, 64, 0.6);
+}
+.btn-play:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+.type-hint {
+  font-size: 12px;
+  opacity: 0.7;
+}
+.btn-pass {
+  background: rgba(255,255,255,0.1);
+  color: #ccc;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+.btn-pass:hover:not(:disabled) {
+  background: rgba(255,255,255,0.2);
+}
+.btn-pass:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ===== 消息栏 ===== */
+.message-bar {
+  padding: 8px 24px;
+  background: linear-gradient(135deg, #16213e, #1a1a2e);
+  border-top: 1px solid rgba(255,255,255,0.1);
+  font-size: 14px;
+  color: rgba(255,255,255,0.7);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ===== 分析面板 ===== */
+.analysis-overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 380px;
+  z-index: 100;
+  animation: slideIn 0.4s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.analysis-panel {
+  height: 100%;
+  background: var(--panel-bg);
+  border-left: 2px solid var(--gold);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: -4px 0 20px rgba(0,0,0,0.5);
+}
+
+.analysis-header {
+  padding: 16px 16px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.analysis-header h3 {
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+.analysis-prompt {
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+}
+
+.key-info-section,
+.all-info-section,
+.think-prompts {
+  padding: 12px 16px;
+}
+
+.key-info-section {
+  background: rgba(240, 192, 64, 0.05);
+  border-bottom: 1px solid rgba(240, 192, 64, 0.15);
+}
+
+.all-info-section {
+  flex: 1;
+  overflow-y: auto;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.section-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+.section-toggle h4 {
+  margin: 0;
+}
+
+.info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.info-card {
+  background: var(--panel-card);
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+.info-card.highlighted {
+  border-color: var(--gold);
+  background: rgba(240, 192, 64, 0.08);
+}
+.info-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.info-icon { font-size: 16px; }
+.info-category {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.8);
+}
+.info-detail {
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  margin: 0;
+}
+.info-items {
+  list-style: none;
+  padding: 0;
+}
+.info-items li {
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  padding: 2px 0;
+  padding-left: 12px;
+  position: relative;
+}
+.info-items li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--gold);
+}
+
+.think-prompts {
+  padding-bottom: 0;
+}
+.think-prompts h4 {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.think-prompts ul {
+  list-style: none;
+  padding: 0;
+}
+.think-prompts li {
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  padding: 3px 0;
+  padding-left: 16px;
+  position: relative;
+}
+.think-prompts li::before {
+  content: '🤔';
+  position: absolute;
+  left: 0;
+  font-size: 11px;
+}
+
+.btn-confirm {
+  margin: 12px 16px 16px;
+  padding: 12px;
+  background: linear-gradient(135deg, var(--accent), #5a3ed4);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.btn-confirm:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(124, 92, 252, 0.5);
+}
+
+/* ===== 局结束覆盖层 ===== */
+.round-end-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  animation: fadeIn 0.3s;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.round-end-card {
+  background: var(--panel-bg);
+  padding: 40px 60px;
+  border-radius: 16px;
+  border: 2px solid var(--gold);
+  text-align: center;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+}
+.round-end-card h2 {
+  font-size: 22px;
+  margin-bottom: 24px;
+}
+.btn-primary {
+  padding: 12px 36px;
+  background: linear-gradient(135deg, var(--gold), #ff9800);
+  color: #111;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(240, 192, 64, 0.6);
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 900px) {
+  .analysis-overlay {
+    width: 300px;
+  }
+  :root {
+    --card-w: 44px;
+    --card-h: 64px;
+  }
+  .card .card-rank { font-size: 14px; }
+  .card .card-suit { font-size: 16px; }
+  .card-back-small { width: 14px; height: 20px; }
+}
