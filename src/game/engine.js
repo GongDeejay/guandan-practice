@@ -6,7 +6,7 @@ import {
 import { identifyHandType, canBeat, aiChoosePlay } from './rules.js';
 import { generateAnalysis } from './analysis.js';
 
-const PLAYER_ORDER = ['south', 'west', 'north', 'east'];
+const PLAYER_ORDER = ['south', 'east', 'north', 'west']; // 逆时针
 
 // ========== 手牌分组 ==========
 export function groupHand(hand, level) {
