@@ -3,8 +3,8 @@ import { PHASES, PLAYER_NAMES, HAND_TYPES } from '../game/constants';
 import { identifyHandType } from '../game/rules';
 import Card from './Card';
 
-const SIDE_MAX_PLAYS = 4; // 左右侧玩家最多展示几轮出牌
-const SOUTH_MAX_PLAYS = 5; // 南家最多展示几轮出牌
+const SIDE_MAX_PLAYS = 3; // 左右侧玩家最多展示几轮出牌
+const SOUTH_MAX_PLAYS = 4; // 南家最多展示几轮出牌
 
 export default function GameTable({ game, onToggleCard }) {
   const { hands, lastPlay, currentTurn, phase, selectedCards, playHistory, cardGroups } = game;
@@ -45,19 +45,39 @@ export default function GameTable({ game, onToggleCard }) {
     return sortedRanks.map(rank => map[rank]);
   }, [hands.south, game.level]);
 
+  // 为其他三家按 rank 分组手牌（用于垂直叠放显示）
+  const groupCardsByRank = (cards) => {
+    const map = {};
+    cards.forEach((card, idx) => {
+      if (!map[card.rank]) map[card.rank] = [];
+      map[card.rank].push({ card, idx });
+    });
+    
+    const rankOrder = ['BJ', 'SJ', 'A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+    const getSortValue = (rank) => {
+      const idx = rankOrder.indexOf(rank);
+      if (idx !== -1) return idx;
+      if (rank === game.level) return 2;
+      return 99;
+    };
+    
+    const sortedRanks = Object.keys(map).sort((a, b) => getSortValue(a) - getSortValue(b));
+    return sortedRanks.map(rank => map[rank]);
+  };
+
   return (
     <div className="game-table">
       {/* 北 */}
       <div className="player-area north">
         <PlayerLabel name={PLAYER_NAMES.north} count={hands.north.length} active={currentTurn === 'north'} />
-        <HandBacks cards={hands.north} direction="h" />
+        <HandStacked cards={hands.north} level={game.level} groupCardsByRank={groupCardsByRank} />
         <PlayerPlayedStack plays={playsByPlayer.north} limit={SIDE_MAX_PLAYS} />
       </div>
 
       {/* 西 */}
       <div className="player-area west">
         <PlayerLabel name={PLAYER_NAMES.west} count={hands.west.length} active={currentTurn === 'west'} />
-        <HandBacks cards={hands.west} direction="v" />
+        <HandStackedVertical cards={hands.west} level={game.level} groupCardsByRank={groupCardsByRank} />
         <PlayerPlayedStack plays={playsByPlayer.west} limit={SIDE_MAX_PLAYS} />
       </div>
 
@@ -78,7 +98,7 @@ export default function GameTable({ game, onToggleCard }) {
       {/* 东 */}
       <div className="player-area east">
         <PlayerLabel name={PLAYER_NAMES.east} count={hands.east.length} active={currentTurn === 'east'} />
-        <HandBacks cards={hands.east} direction="v" />
+        <HandStackedVertical cards={hands.east} level={game.level} groupCardsByRank={groupCardsByRank} />
         <PlayerPlayedStack plays={playsByPlayer.east} limit={SIDE_MAX_PLAYS} />
       </div>
 
@@ -131,11 +151,48 @@ function PlayerLabel({ name, count, active }) {
   );
 }
 
-function HandBacks({ cards, direction }) {
-  const cls = direction === 'v' ? 'hand-compact vertical' : 'hand-compact';
+// 北家的牌 - 水平垂直叠放
+function HandStacked({ cards, level, groupCardsByRank }) {
+  const grouped = groupCardsByRank(cards);
   return (
-    <div className={cls}>
-      {cards.map((_, i) => <div key={i} className={`card-back-small${direction === 'v' ? ' v' : ''}`} />)}
+    <div className="hand-stacked-horizontal">
+      {grouped.map((sameRank, gi) => (
+        <div key={gi} className="rank-column-mini">
+          {sameRank.map(({ card }, cardIdx) => (
+            <Card
+              key={card.id}
+              card={card}
+              level={level}
+              stacked={cardIdx > 0}
+              stackIndex={cardIdx}
+              mini
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// 东西家的牌 - 垂直叠放
+function HandStackedVertical({ cards, level, groupCardsByRank }) {
+  const grouped = groupCardsByRank(cards);
+  return (
+    <div className="hand-stacked-vertical">
+      {grouped.map((sameRank, gi) => (
+        <div key={gi} className="rank-column-mini-vertical">
+          {sameRank.map(({ card }, cardIdx) => (
+            <Card
+              key={card.id}
+              card={card}
+              level={level}
+              stacked={cardIdx > 0}
+              stackIndex={cardIdx}
+              mini
+            />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

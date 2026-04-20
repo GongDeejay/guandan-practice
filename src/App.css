@@ -832,3 +832,226 @@ body {
     min-height: calc(var(--card-h) + var(--stack-offset) * 2 + 5px);
   }
 }
+
+/* ========================================
+   其他三家的垂直叠放牌
+   ======================================== */
+
+/* 迷你牌基础样式 */
+.card-mini-stacked {
+  background: linear-gradient(180deg, #fff 0%, #f8f8f8 50%, #f0f0f0 100%);
+  border-radius: clamp(2px, 0.3vw, 4px);
+  border: clamp(1px, 0.08vw, 1.5px) solid #d0d0d0;
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  justify-content: center;
+  user-select: none; 
+  flex-shrink: 0; 
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  position: relative;
+  width: var(--mini-w);
+  height: var(--mini-h);
+}
+
+/* 迷你牌堆叠样式 */
+.card-mini-stacked.stacked {
+  height: clamp(10px, 1.4vw, 16px);
+  margin-top: calc(-1 * var(--mini-h) + clamp(10px, 1.4vw, 16px));
+  overflow: hidden;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  z-index: calc(2 + var(--stack-index, 0));
+}
+
+/* 迷你牌堆叠的左上角内容 */
+.card-mini-stacked.stacked .card-corner-mini {
+  position: absolute;
+  top: 1px; 
+  left: 2px;
+  display: flex; 
+  flex-direction: column; 
+  align-items: center;
+  line-height: 1;
+}
+
+.card-mini-stacked.stacked .card-rank-mini,
+.card-mini-stacked.stacked .card-suit-mini {
+  font-size: clamp(5px, 0.6vw, 8px);
+  margin: 0;
+}
+
+/* 迷你牌主内容 */
+.card-mini-stacked .card-main-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.card-mini-stacked .card-rank-mini { 
+  font-size: var(--mini-font); 
+  font-weight: 800; 
+  line-height: 1; 
+}
+
+.card-mini-stacked .card-suit-mini { 
+  font-size: clamp(10px, 1.2vw, 14px); 
+  line-height: 1; 
+  margin-top: 1px; 
+}
+
+/* 迷你牌颜色 */
+.card-mini-stacked.red { color: var(--red-suit); }
+.card-mini-stacked.black { color: var(--black-suit); }
+
+/* 迷你牌 - 百搭牌 */
+.card-mini-stacked.wild {
+  background: var(--wild-bg);
+  color: #fff;
+  border-color: var(--wild-border);
+}
+
+.card-mini-stacked.wild .card-rank-mini,
+.card-mini-stacked.wild .card-suit-mini {
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+}
+
+/* 迷你牌 - 大王 */
+.card-mini-stacked.bj { 
+  background: linear-gradient(135deg, #1a1a1a 0%, #333 50%, #1a1a1a 100%); 
+  color: var(--gold); 
+  border-color: var(--gold); 
+}
+
+.card-mini-stacked.bj .card-rank-mini,
+.card-mini-stacked.bj .card-suit-mini {
+  color: var(--gold);
+}
+
+/* 迷你牌 - 小王 */
+.card-mini-stacked.sj { 
+  background: linear-gradient(135deg, #2a2a2a 0%, #444 50%, #2a2a2a 100%); 
+  color: #ccc; 
+  border-color: #888; 
+}
+
+.card-mini-stacked.sj .card-rank-mini,
+.card-mini-stacked.sj .card-suit-mini {
+  color: #ccc;
+}
+
+/* ========================================
+   北家 - 水平排列的垂直叠放
+   ======================================== */
+.hand-stacked-horizontal {
+  display: flex; 
+  justify-content: center; 
+  align-items: flex-end;
+  gap: clamp(1px, 0.2vw, 3px); 
+  min-height: calc(var(--mini-h) + clamp(10px, 1.4vw, 16px));
+  padding: clamp(1px, 0.2vw, 3px) 0; 
+  max-width: 100%;
+  overflow-x: auto; 
+  overflow-y: hidden;
+}
+
+.rank-column-mini {
+  display: flex; 
+  flex-direction: column;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* ========================================
+   东西家 - 垂直排列的水平叠放
+   ======================================== */
+.hand-stacked-vertical {
+  display: flex; 
+  flex-direction: column;
+  justify-content: center; 
+  align-items: flex-start;
+  gap: clamp(1px, 0.15vw, 2px); 
+  max-height: 100%;
+  padding: 0 clamp(2px, 0.3vw, 5px);
+  overflow-y: auto; 
+  overflow-x: hidden;
+}
+
+.rank-column-mini-vertical {
+  display: flex; 
+  flex-direction: row;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.rank-column-mini-vertical .card-mini-stacked.stacked {
+  height: auto;
+  width: clamp(10px, 1.4vw, 16px);
+  margin-top: 0;
+  margin-left: calc(-1 * var(--mini-w) + clamp(10px, 1.4vw, 16px));
+  overflow: hidden;
+  border-bottom-left-radius: clamp(2px, 0.3vw, 4px);
+  border-bottom-right-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.rank-column-mini-vertical .card-mini-stacked.stacked .card-corner-mini {
+  top: 2px;
+  left: 1px;
+}
+
+/* ========================================
+   牌桌布局优化 - 确保完整显示
+   ======================================== */
+.game-table {
+  width: 100%; 
+  height: 100%;
+  display: grid;
+  grid-template-areas:
+    ".    north .    "
+    "west center east "
+    ".    south .    ";
+  grid-template-columns: clamp(60px, 10vw, 120px) 1fr clamp(60px, 10vw, 120px);
+  grid-template-rows: auto 1fr auto;
+  background: radial-gradient(ellipse at center, var(--felt) 0%, var(--table-green) 60%, var(--table-dark) 100%);
+  padding: clamp(3px, 0.5vw, 8px);
+  gap: clamp(2px, 0.3vw, 5px);
+  overflow: hidden;
+}
+
+/* 玩家区域优化 */
+.player-area {
+  display: flex; 
+  flex-direction: column; 
+  align-items: center;
+  gap: clamp(1px, 0.2vw, 4px); 
+  padding: clamp(2px, 0.3vw, 6px);
+  position: relative; 
+  min-height: 0; 
+  overflow: hidden;
+}
+
+/* 南家区域特殊处理 - 确保手牌完整显示 */
+.player-area.south {
+  overflow: visible;
+}
+
+.player-hand-stacked {
+  display: flex; 
+  justify-content: center; 
+  align-items: flex-end;
+  gap: var(--rank-gap); 
+  min-height: calc(var(--card-h) + var(--stack-offset) * 2);
+  padding: clamp(2px, 0.3vw, 5px) 0; 
+  max-width: 100%;
+  overflow: visible;
+}
+
+/* 确保手牌不被遮挡 */
+.player-area.south .player-hand-stacked {
+  overflow-y: visible;
+  padding-bottom: clamp(4px, 0.5vw, 8px);
+}

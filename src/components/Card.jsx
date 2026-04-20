@@ -13,6 +13,7 @@ import { isRed, isWildCard } from '../game/constants';
  * - level: 当前级别（用于判断百搭牌）
  * - stacked: 是否为堆叠中的上方牌
  * - stackIndex: 堆叠索引（用于计算偏移）
+ * - mini: 迷你模式（用于其他三家的牌）
  */
 export default function Card({ 
   card, 
@@ -23,7 +24,8 @@ export default function Card({
   faceUp, 
   level, 
   stacked,
-  stackIndex = 0 
+  stackIndex = 0,
+  mini = false
 }) {
   const red = isRed(card);
   const isJoker = card.rank === 'BJ' || card.rank === 'SJ';
@@ -34,7 +36,7 @@ export default function Card({
 
   // 构建 class 名
   const cls = [
-    compact ? 'card-mini' : faceUp ? 'card-face-up' : 'card',
+    compact ? 'card-mini' : faceUp ? 'card-face-up' : mini ? 'card-mini-stacked' : 'card',
     selected ? 'selected' : '',
     disabled ? 'disabled' : '',
     red ? 'red' : 'black',
@@ -58,6 +60,32 @@ export default function Card({
       <div className={cls}>
         <span className="fu-rank">{isWild ? '配' : card.rank}</span>
         <span className="fu-suit">{suitStr}</span>
+      </div>
+    );
+  }
+
+  // 迷你模式（用于其他三家的垂直叠放牌）
+  if (mini) {
+    if (stacked) {
+      return (
+        <div 
+          className={cls} 
+          onClick={disabled ? undefined : onClick}
+          style={{ '--stack-index': stackIndex }}
+        >
+          <div className="card-corner-mini">
+            <span className="card-rank-mini">{isWild ? '配' : card.rank}</span>
+            <span className="card-suit-mini">{suitStr}</span>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className={cls} onClick={disabled ? undefined : onClick}>
+        <div className="card-main-mini">
+          <span className="card-rank-mini">{isWild ? '配' : card.rank}</span>
+          <span className="card-suit-mini">{suitStr}</span>
+        </div>
       </div>
     );
   }
