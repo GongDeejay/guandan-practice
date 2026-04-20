@@ -18,15 +18,31 @@ export default function GameTable({ game, onToggleCard }) {
 
   const isPlayerTurn = phase === PHASES.PLAYER_TURN;
 
-  // 按 rank 分组玩家手牌
+  // 按 rank 分组玩家手牌（从大到小排序）
+  // 排序顺序：大王、小王、百搭牌、A、K、Q、J、10、9…2
   const groupedByRank = useMemo(() => {
     const map = {};
     hands.south.forEach((card, idx) => {
       if (!map[card.rank]) map[card.rank] = [];
       map[card.rank].push({ card, idx });
     });
-    const order = Object.keys(map).sort((a, b) => getRankSortValue(b, game.level) - getRankSortValue(a, game.level));
-    return order.map(rank => map[rank]);
+    
+    // 定义排序顺序
+    const rankOrder = ['BJ', 'SJ', 'A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+    
+    // 获取排序值
+    const getSortValue = (rank) => {
+      const idx = rankOrder.indexOf(rank);
+      if (idx !== -1) return idx;
+      // 如果是级牌，排在小王之后
+      if (rank === game.level) return 2;
+      return 99;
+    };
+    
+    // 按排序顺序排列
+    const sortedRanks = Object.keys(map).sort((a, b) => getSortValue(a) - getSortValue(b));
+    
+    return sortedRanks.map(rank => map[rank]);
   }, [hands.south, game.level]);
 
   return (
@@ -79,17 +95,20 @@ export default function GameTable({ game, onToggleCard }) {
           </div>
         )}
 
-        {/* 手牌：同 rank 竖排叠放 */}
-        <div className="player-hand">
+        {/* 手牌：垂直分层码牌布局 */}
+        <div className="player-hand-stacked">
           {groupedByRank.map((sameRank, gi) => (
-            <div key={gi} className="rank-stack">
-              {sameRank.map(({ card, idx }) => (
+            <div key={gi} className="rank-column">
+              {sameRank.map(({ card, idx }, cardIdx) => (
                 <Card
                   key={card.id}
                   card={card}
                   selected={selectedCards.includes(idx)}
                   onClick={() => isPlayerTurn && onToggleCard(idx)}
                   disabled={!isPlayerTurn}
+                  level={game.level}
+                  stacked={cardIdx > 0}
+                  stackIndex={cardIdx}
                 />
               ))}
             </div>
@@ -148,16 +167,4 @@ function getTypeName(type) {
     bomb_6: '六炸', bomb_7: '七炸', four_joker: '四王炸',
   };
   return map[type] || type;
-}
-
-function getRankSortValue(rank, level) {
-  if (rank === 'BJ') return 17;
-  if (rank === 'SJ') return 16;
-  if (rank === level) return 15;
-  if (rank === 'A') return 14;
-  if (rank === 'K') return 13;
-  if (rank === 'Q') return 12;
-  if (rank === 'J') return 11;
-  if (rank === '10') return 10;
-  return parseInt(rank) || 0;
 }
