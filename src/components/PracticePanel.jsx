@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { PRACTICE_MODES, PAUSE_TYPES, TIP_TYPES, PracticeManager, BeginnerTutorial } from '../game/practice';
 
 /**
- * 练习面板组件
+ * 练习面板组件 - 紧凑版
  * 
  * 功能：
  * 1. 显示练习模式选择
@@ -21,6 +21,7 @@ export default function PracticePanel({
   const [tutorial, setTutorial] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tips, setTips] = useState([]);
+  const [expanded, setExpanded] = useState(false);
 
   // 分析当前牌局
   useEffect(() => {
@@ -69,42 +70,133 @@ export default function PracticePanel({
     }
   };
 
+  // 获取最重要的提示
+  const mainTip = tips.find(t => t.priority === 'high') || tips[0];
+
   return (
-    <div className="practice-panel">
-      {/* 模式选择 */}
-      <div className="practice-modes">
-        <span className="mode-label">练习模式：</span>
-        <select 
-          value={practiceManager?.mode || PRACTICE_MODES.BEGINNER}
-          onChange={(e) => onModeChange(e.target.value)}
-          className="mode-select"
-        >
-          <option value={PRACTICE_MODES.BEGINNER}>初级（详细提示）</option>
-          <option value={PRACTICE_MODES.INTERMEDIATE}>中级（智能提示）</option>
-          <option value={PRACTICE_MODES.ADVANCED}>高级（关键提示）</option>
-          <option value={PRACTICE_MODES.FREE}>自由（无提示）</option>
-        </select>
-        
-        <button 
-          className="btn-tutorial"
-          onClick={startTutorial}
-        >
-          📚 教学
-        </button>
+    <div className={`practice-panel ${expanded ? 'expanded' : 'compact'}`}>
+      {/* 紧凑模式头部 */}
+      <div className="panel-header" onClick={() => setExpanded(!expanded)}>
+        <div className="header-left">
+          <span className="panel-icon">🎓</span>
+          <span className="panel-title">练习模式</span>
+        </div>
+        <div className="header-right">
+          {tips.length > 0 && (
+            <span className="tips-badge">{tips.length}</span>
+          )}
+          <span className="expand-icon">{expanded ? '▼' : '▲'}</span>
+        </div>
       </div>
 
-      {/* 暂停控制 */}
-      <div className="pause-controls">
-        {isPaused ? (
-          <button className="btn-resume" onClick={onResume}>
-            ▶️ 继续
-          </button>
-        ) : (
-          <button className="btn-pause" onClick={() => onPause(PAUSE_TYPES.PLAYER_REQUEST)}>
-            ⏸️ 暂停
-          </button>
-        )}
-      </div>
+      {/* 紧凑模式 - 只显示关键信息 */}
+      {!expanded && (
+        <div className="compact-content">
+          {/* 模式选择 */}
+          <div className="mode-compact">
+            <select 
+              value={practiceManager?.mode || PRACTICE_MODES.BEGINNER}
+              onChange={(e) => onModeChange(e.target.value)}
+              className="mode-select-compact"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <option value={PRACTICE_MODES.BEGINNER}>初级</option>
+              <option value={PRACTICE_MODES.INTERMEDIATE}>中级</option>
+              <option value={PRACTICE_MODES.ADVANCED}>高级</option>
+              <option value={PRACTICE_MODES.FREE}>自由</option>
+            </select>
+          </div>
+
+          {/* 暂停/继续按钮 */}
+          <div className="pause-compact">
+            {isPaused ? (
+              <button className="btn-resume-compact" onClick={(e) => { e.stopPropagation(); onResume(); }}>
+                ▶️ 继续
+              </button>
+            ) : (
+              <button className="btn-pause-compact" onClick={(e) => { e.stopPropagation(); onPause(PAUSE_TYPES.PLAYER_REQUEST); }}>
+                ⏸️ 暂停
+              </button>
+            )}
+          </div>
+
+          {/* 最重要的提示 */}
+          {mainTip && !isPaused && (
+            <div 
+              className="main-tip"
+              style={{ borderLeftColor: getPriorityColor(mainTip.priority) }}
+            >
+              <span className="tip-icon-small">{getTipIcon(mainTip.type)}</span>
+              <span className="tip-text-small">{mainTip.title}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 展开模式 - 显示完整信息 */}
+      {expanded && (
+        <div className="expanded-content">
+          {/* 模式选择 */}
+          <div className="mode-expanded">
+            <span className="mode-label">练习模式：</span>
+            <select 
+              value={practiceManager?.mode || PRACTICE_MODES.BEGINNER}
+              onChange={(e) => onModeChange(e.target.value)}
+              className="mode-select-expanded"
+            >
+              <option value={PRACTICE_MODES.BEGINNER}>初级（详细提示）</option>
+              <option value={PRACTICE_MODES.INTERMEDIATE}>中级（智能提示）</option>
+              <option value={PRACTICE_MODES.ADVANCED}>高级（关键提示）</option>
+              <option value={PRACTICE_MODES.FREE}>自由（无提示）</option>
+            </select>
+            
+            <button 
+              className="btn-tutorial"
+              onClick={startTutorial}
+            >
+              📚 教学
+            </button>
+          </div>
+
+          {/* 暂停控制 */}
+          <div className="pause-expanded">
+            {isPaused ? (
+              <button className="btn-resume-expanded" onClick={onResume}>
+                ▶️ 继续游戏
+              </button>
+            ) : (
+              <button className="btn-pause-expanded" onClick={() => onPause(PAUSE_TYPES.PLAYER_REQUEST)}>
+                ⏸️ 暂停游戏
+              </button>
+            )}
+          </div>
+
+          {/* 教学提示列表 */}
+          {tips.length > 0 && (
+            <div className="tips-container-expanded">
+              <div className="tips-header-expanded">
+                <span>💡 系统提示</span>
+                <span className="tips-count">{tips.length}</span>
+              </div>
+              <div className="tips-list-expanded">
+                {tips.map((tip, index) => (
+                  <div 
+                    key={index} 
+                    className="tip-item-expanded"
+                    style={{ borderLeftColor: getPriorityColor(tip.priority) }}
+                  >
+                    <div className="tip-icon">{getTipIcon(tip.type)}</div>
+                    <div className="tip-content">
+                      <div className="tip-title">{tip.title}</div>
+                      <div className="tip-message">{tip.message}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 初级教学弹窗 */}
       {showTutorial && tutorial && (
@@ -121,31 +213,6 @@ export default function PracticePanel({
                 {tutorial.isComplete() ? '开始练习' : '下一步'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 教学提示列表 */}
-      {tips.length > 0 && !isPaused && (
-        <div className="tips-container">
-          <div className="tips-header">
-            <span>💡 系统提示</span>
-            <span className="tips-count">{tips.length}</span>
-          </div>
-          <div className="tips-list">
-            {tips.map((tip, index) => (
-              <div 
-                key={index} 
-                className="tip-item"
-                style={{ borderLeftColor: getPriorityColor(tip.priority) }}
-              >
-                <div className="tip-icon">{getTipIcon(tip.type)}</div>
-                <div className="tip-content">
-                  <div className="tip-title">{tip.title}</div>
-                  <div className="tip-message">{tip.message}</div>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )}

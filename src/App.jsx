@@ -3,6 +3,8 @@ import './App.css';
 import GameTable from './components/GameTable';
 import AnalysisPanel from './components/AnalysisPanel';
 import PracticePanel from './components/PracticePanel';
+import CardTracker from './components/CardTracker';
+import ProgressPanel from './components/ProgressPanel';
 import {
   createGameState, getAnalysis, confirmAnalysis, toggleCard,
   playerPlay, playerPass, processAITurn, startNewRound,
@@ -10,6 +12,8 @@ import {
 } from './game/engine';
 import { PHASES } from './game/constants';
 import { PRACTICE_MODES, PAUSE_TYPES, PracticeManager } from './game/practice';
+import { CardTracker as CardTrackerClass } from './game/cardTracker';
+import { ProgressManager } from './game/progress';
 
 export default function App() {
   const [game, setGame] = useState(() => createGameState());
@@ -20,6 +24,14 @@ export default function App() {
   const [practiceManager] = useState(() => new PracticeManager(PRACTICE_MODES.BEGINNER));
   const [isPaused, setIsPaused] = useState(false);
   const [pauseType, setPauseType] = useState(null);
+  
+  // 记牌器
+  const [cardTracker] = useState(() => new CardTrackerClass());
+  const [showTracker, setShowTracker] = useState(false);
+  
+  // 学习进度
+  const [progressManager] = useState(() => new ProgressManager());
+  const [showProgress, setShowProgress] = useState(false);
 
   useEffect(() => {
     if (game.phase === PHASES.ANALYSIS) {
@@ -29,6 +41,23 @@ export default function App() {
       setShowAnalysis(false);
     }
   }, [game.phase, game.playHistory.length]);
+
+  // 更新记牌器 - 记录出牌
+  useEffect(() => {
+    if (game.playHistory.length > 0) {
+      const lastPlay = game.playHistory[game.playHistory.length - 1];
+      if (lastPlay && lastPlay.cards) {
+        cardTracker.trackPlay(lastPlay.cards, lastPlay.player);
+      }
+    }
+  }, [game.playHistory.length]);
+
+  // 新局时重置记牌器
+  useEffect(() => {
+    if (game.phase === PHASES.DEALING) {
+      cardTracker.reset();
+    }
+  }, [game.phase]);
 
   // AI自动出牌（暂停时不自动出牌）
   useEffect(() => {
@@ -43,21 +72,33 @@ export default function App() {
     if (game.phase === PHASES.PLAYER_TURN && 
         practiceManager.mode === PRACTICE_MODES.BEGINNER && 
         !isPaused) {
-      // 自动暂停让玩家思考
       handlePause(PAUSE_TYPES.PLAYER_TURN);
+    }
+  }, [game.phase]);
+
+  // 游戏结束时记录进度
+  useEffect(() => {
+    if (game.phase === PHASES.ROUND_END) {
+      const won = game.message.includes('南北') || game.message.includes('你');
+      progressManager.recordGame({
+        mode: practiceManager.mode,
+        won: won,
+        tips: practiceManager.tips?.length || 0,
+        duration: 5, // 简化：假设每局5分钟
+        score: game.levelWins,
+      });
     }
   }, [game.phase]);
 
   const handleDeal = useCallback(() => setGame(g => startNewRound(g)), []);
   const handleConfirm = useCallback(() => { setShowAnalysis(false); setGame(g => confirmAnalysis(g)); }, []);
   const handleToggle = useCallback((idx) => {
-    if (isPaused) return; // 暂停时不允许操作
+    if (isPaused) return;
     setGame(g => toggleCard(g, idx));
   }, [isPaused]);
   const handlePlay = useCallback(() => {
     if (isPaused) return;
     setGame(g => playerPlay(g));
-    // 出牌后恢复暂停状态
     if (pauseType === PAUSE_TYPES.PLAYER_TURN) {
       setIsPaused(false);
       setPauseType(null);
@@ -66,7 +107,6 @@ export default function App() {
   const handlePass = useCallback(() => {
     if (isPaused) return;
     setGame(g => playerPass(g));
-    // 过牌后恢复暂停状态
     if (pauseType === PAUSE_TYPES.PLAYER_TURN) {
       setIsPaused(false);
       setPauseType(null);
@@ -95,7 +135,6 @@ export default function App() {
   // 切换练习模式
   const handleModeChange = useCallback((mode) => {
     practiceManager.setMode(mode);
-    // 如果切换到自由模式，取消自动暂停
     if (mode === PRACTICE_MODES.FREE || mode === PRACTICE_MODES.ADVANCED) {
       setIsPaused(false);
       setPauseType(null);
@@ -116,6 +155,22 @@ export default function App() {
               <span className="team-score">南北 {game.levelWins.teamA} : {game.levelWins.teamB} 东西</span>
             </>
           )}
+          <div className="header-buttons">
+            <button 
+              className="btn-header"
+              onClick={() => setShowTracker(!showTracker)}
+              title="记牌器"
+            >
+              📊
+            </button>
+            <button 
+              className="btn-header"
+              onClick={() => setShowProgress(true)}
+              title="学习进度"
+            >
+              📈
+            </button>
+          </div>
         </div>
       </header>
 
@@ -127,10 +182,17 @@ export default function App() {
           onPass={handlePass}
         />
 
+        {/* 记牌器 */}
+        {showTracker && game.phase !== PHASES.DEALING && (
+          <div className="tracker-container">
+            <CardTracker tracker={cardTracker} compact={true} />
+          </div>
+        )}
+
         {/* 练习面板 */}
         {game.phase !== PHASES.DEALING && game.phase !== PHASES.ROUND_END && (
           <PracticePanel
-            game={game}
+          game={game}
             practiceManager={practiceManager}
             onPause={handlePause}
             onResume={handleResume}
@@ -150,7 +212,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 分析面板 —— 底部浮动，不遮挡任何玩家 */}
+        {/* 分析面板 */}
         {showAnalysis && analysis && (
           <AnalysisPanel
             analysis={analysis}
@@ -179,6 +241,12 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* 学习进度面板 */}
+      <ProgressPanel 
+        isOpen={showProgress} 
+        onClose={() => setShowProgress(false)} 
+      />
 
       {/* 底部操作栏 */}
       <div className="bottom-bar">
